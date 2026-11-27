@@ -3,6 +3,7 @@
 Include: limitatore globale di richieste/minuto, retry con backoff sui 429, passaggio al modello di
 riserva quando finisce la quota giornaliera, sotto-agenti paralleli, cronologia salvata su file.
 """
+import itertools
 import json
 import os
 import random
@@ -163,7 +164,7 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
     """Esegue l'agente fino alla fine o a max_steps. Restituisce la risposta finale."""
     cfg = ctx.cfg
     model = model or cfg["model"]
-    max_steps = max_steps or cfg["max_steps"]
+    max_steps = max_steps or cfg["max_steps"] or None      # 0 in config = nessun limite di passi (si ferma col pulsante Stop)
     if ctx.depth == 0:
         ctx.delega = lambda compiti: avvia_sotto_agenti(ctx, sessione, compiti)
     parti = [types.Part(text=obiettivo)]
@@ -192,7 +193,7 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
     idx = next((i for i, (t, x) in enumerate(catena) if not USO.e_esaurito(nome_backend(t, x))), 0)  # salta i gia' esauriti oggi
     sistema = SYSTEM + (" " + ruolo if ruolo else "") + f" Data di oggi: {datetime.now():%Y-%m-%d}."
     correzioni = 0
-    for passo in range(1, max_steps + 1):
+    for passo in (range(1, max_steps + 1) if max_steps else itertools.count(1)):
         while True:
             tipo, x = catena[idx]
             try:

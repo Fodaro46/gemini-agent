@@ -2,7 +2,7 @@
   "_nota": "Nomi dei modelli presi dalla documentazione ufficiale (aistudio.google.com/docs/models) il 2026-11-26. Cambiali qui, non nel codice.",
   "model": "gemini-3.5-flash-lite",
   "fallback_model": "gemini-3.6-flash",
-  "max_steps": 40,
+  "max_steps": 0,
   "requests_per_minute": 12,
   "max_retries": 5,
   "workspace": "workspace",
