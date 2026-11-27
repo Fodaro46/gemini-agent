@@ -648,8 +648,23 @@ def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", t
         cmd, descr = ["click", "--repeat", str(abs(n) or 1), "5" if n >= 0 else "4"], f"SCORRERE di {n}"
     if not serve_conferma(ctx, "input", f"{descr} (controllo diretto di mouse/tastiera)"):
         return RIFIUTATO
-    r = subprocess.run(["xdotool", *cmd], env=_env_gui(), capture_output=True, text=True, timeout=30)
-    return "Fatto." if r.returncode == 0 else "Errore: " + r.stderr[:200]
+    env = _env_gui()
+    r = subprocess.run(["xdotool", *cmd], env=env, capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        return "Errore: " + r.stderr[:200]
+    # Prove concrete (lette dal sistema, non dichiarate dal modello): dove e' il mouse e quale finestra e' attiva
+    fatti = []
+    if azione in ("click", "doppio_click", "muovi"):
+        m = subprocess.run(["xdotool", "getmouselocation"], env=env, capture_output=True, text=True, timeout=10)
+        mm = re.search(r"x:(\d+) y:(\d+)", m.stdout)
+        if mm and (abs(int(mm.group(1)) - x) > 2 or abs(int(mm.group(2)) - y) > 2):
+            return f"Errore: il mouse e' in ({mm.group(1)}, {mm.group(2)}) invece che in ({x}, {y}): coordinate fuori dallo schermo? Fai uno screenshot."
+        fatti.append(f"mouse in ({x}, {y}) confermato")
+    w = subprocess.run(["xdotool", "getactivewindow", "getwindowname"], env=env, capture_output=True, text=True, timeout=10)
+    if w.returncode == 0 and w.stdout.strip():
+        fatti.append(f"finestra attiva: «{w.stdout.strip()[:80]}»")
+    return "Fatto (" + "; ".join(fatti) + "). NON basta: fai uno screenshot per vedere l'effetto prima di dire che ha funzionato." if fatti \
+        else "Fatto. NON basta: fai uno screenshot per vedere l'effetto prima di dire che ha funzionato."
 
 
 # ---------------------------------------------------------------- registro

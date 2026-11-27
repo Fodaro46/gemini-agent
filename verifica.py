@@ -23,6 +23,7 @@ VERBI = {
     "modificat": "modifica", "aggiornat": "modifica", "sostituit": "modifica",
     "eliminat": "cancellazione", "cancellat": "cancellazione", "rimoss": "cancellazione",
     "eseguit": "esecuzione", "lanciat": "esecuzione", "avviat": "esecuzione", "installat": "esecuzione",
+    "cliccat": "schermo", "premut": "schermo", "digitat": "schermo", "selezionat": "schermo", "attivat": "schermo", "abilitat": "schermo",
     "spostat": "esecuzione", "rinominat": "esecuzione", "copiat": "esecuzione", "scaricat": "esecuzione",
 }
 RADICI = "|".join(VERBI)
@@ -76,6 +77,13 @@ def _soddisfatta(cat: str, passi: list[Passo]) -> bool:
     if cat == "cancellazione":
         return any(p.strumento in ("delete_file", "git", "delega_agenti") or
                    (p.strumento == "run_shell" and CMD_RM.search(str(p.args.get("command", "")))) for p in ok)
+    if cat == "schermo":
+        # Azioni sullo schermo: servono (1) un'azione di mouse/tastiera riuscita e (2) uno screenshot riuscito fatto DOPO l'ultima azione.
+        # Se in questo turno non c'e' stato nessun input, il verbo riguarda altro (es. un servizio avviato da shell): vale come esecuzione.
+        ultimo_input = max((i for i, p in enumerate(passi) if p.strumento == "controlla_input"), default=-1)
+        if ultimo_input < 0:
+            return _soddisfatta("esecuzione", passi)
+        return passi[ultimo_input].ok and any(p.ok for p in passi[ultimo_input + 1:] if p.strumento == "screenshot")
     return any(p.strumento in ("run_shell", "apri", "controlla_input", "git", "delega_agenti") for p in ok)
 
 
@@ -111,7 +119,8 @@ def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_a
             continue                    # niente affermazione, o e' una negazione ("non ho potuto creare...")
         cat = VERBI[m.group(1).lower()]
         if not _soddisfatta(cat, passi):
-            errori.append(f"Dici «{frase[:110]}» ma non risulta nessuna azione di tipo '{cat}' eseguita con successo.")
+            errori.append(f"Dici «{frase[:110]}» ma non risulta nessuna azione di tipo '{cat}' eseguita con successo"
+                          + (" E CONFERMATA da uno screenshot fatto dopo l'ultimo click/tasto: fallo, guarda, e riporta solo cio' che vedi." if cat == "schermo" else "."))
             continue
         # i file citati nella stessa frase devono rispecchiare lo stato reale
         for nome in FILE.findall(frase):

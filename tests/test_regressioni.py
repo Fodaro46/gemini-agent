@@ -22,6 +22,7 @@ import audit  # noqa: E402
 import llm  # noqa: E402
 import tools  # noqa: E402
 import usage  # noqa: E402
+import verifica  # noqa: E402
 import web  # noqa: E402
 from google.genai import types  # noqa: E402
 from test_deterministici import Base, CFG, ClientFinto, TestWeb, chiama, testo  # noqa: E402
@@ -358,6 +359,36 @@ class TestAuditCloudflare(Base):
         f.chmod(0o755)
         for nome in ("nano-", "nan.+", "x+", "pkg.", "ufw-", "-o", "Foo", "a;b", "pacchetto-che-non-esiste-xyz"):
             self.assertEqual(subprocess.run([str(f), "install", nome], capture_output=True).returncode, 2, nome)
+
+
+class TestVerificaSchermo(Base):
+    """Azioni sullo schermo: dichiarare un successo senza uno screenshot DOPO l'ultimo input e' contestato."""
+
+    def _passi(self, *seq):
+        return [verifica.Passo(n, {}, ris) for n, ris in seq]
+
+    def test_click_senza_screenshot_dopo_e_contestato(self):
+        ok = ("controlla_input", "Fatto (mouse in (5, 5) confermato).")
+        shot = ("screenshot", "Screenshot acquisito (1920x1080 pixel REALI)")
+        for seq, attesi in (([ok], 1), ([shot, ok], 1), ([ok, shot], 0)):
+            e = verifica.controlla("Ho cliccato il pulsante e ho attivato la funzione.", self._passi(*seq), "clicca", self.ws)
+            self.assertEqual(len(e["errori"]) > 0, bool(attesi), seq)
+
+    def test_click_fallito_non_e_confermato_dallo_screenshot(self):
+        passi = self._passi(("controlla_input", "Errore: il mouse e' in (1, 1) invece che in (9, 9)"), ("screenshot", "Screenshot acquisito (1x1)"))
+        self.assertTrue(verifica.controlla("Ho cliccato il tasto.", passi, "x", self.ws)["errori"])
+
+    def test_attivato_senza_input_e_un_comando_normale(self):
+        passi = self._passi(("run_shell", "exit=0 --- stdout"))
+        self.assertFalse(verifica.controlla("Ho attivato il servizio.", passi, "x", self.ws)["errori"])
+
+    def test_il_mouse_fuori_schermo_e_segnalato(self):
+        with mock.patch.object(tools.shutil, "which", return_value="/usr/bin/xdotool"), \
+             mock.patch.object(tools.subprocess, "run") as run:
+            run.side_effect = [mock.Mock(returncode=0, stdout="", stderr=""),
+                               mock.Mock(returncode=0, stdout="x:1919 y:1079 screen:0 window:1", stderr="")]
+            out = tools.controlla_input(self.ctx("tutto"), "click", 3000, 500)
+        self.assertTrue(out.startswith("Errore: il mouse e' in (1919, 1079)"), out)
 
 
 class TestConversione(Base):
