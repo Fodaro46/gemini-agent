@@ -552,12 +552,15 @@ def screenshot(ctx) -> str:
     if not png.exists():
         return "Cattura fallita: " + (r.stderr or "nessun errore")[:200]
     im = Image.open(png).convert("RGB")
-    im.thumbnail((2800, 1600))
+    # NIENTE ridimensionamento: le coordinate che il modello legge nello screenshot devono essere identiche ai pixel reali per xdotool
+    if im.width > 4000:
+        im.thumbnail((4000, 4000))
     im.save(SCREEN_DIR / nome, quality=80)
     png.unlink()
     ctx.immagini.append((SCREEN_DIR / nome).read_bytes())
     ctx.log(f"[{ctx.nome}] screenshot: {nome}")
-    return f"Screenshot acquisito ({im.width}x{im.height}); lo trovi allegato a questo messaggio."
+    return (f"Screenshot acquisito ({im.width}x{im.height} pixel REALI: le coordinate dell'immagine sono quelle da usare per il click, "
+            "senza nessuna conversione); lo trovi allegato a questo messaggio.")
 
 
 def finestre(ctx) -> str:
