@@ -1,0 +1,15 @@
+# Cronologia delle sessioni e workspace di lavoro
+sessions/
+workspace/
+# Ambiente virtuale e cache
+.venv/
+__pycache__/
+# Per sicurezza: nessun file con segreti nel repo
+.env
+.env.*
+*.key
+uso.json
+
+.infisical.yaml
+evals/*.json
+*.tmp

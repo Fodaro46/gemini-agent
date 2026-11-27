@@ -1,0 +1,79 @@
+{
+  "_nota": "Nomi dei modelli presi dalla documentazione ufficiale (aistudio.google.com/docs/models) il 2026-11-26. Cambiali qui, non nel codice.",
+  "model": "gemini-3.5-flash-lite",
+  "fallback_model": "gemini-3.6-flash",
+  "max_steps": 12,
+  "requests_per_minute": 12,
+  "max_retries": 5,
+  "workspace": "workspace",
+  "shell_timeout_s": 60,
+  "max_tool_output_chars": 8000,
+  "infisical": {
+    "domain": "https://eu.infisical.com",
+    "env": "dev",
+    "path": "/",
+    "gemini_secret": "GEMINI_API_KEY"
+  },
+  "max_subagents": 3,
+  "sub_max_steps": 8,
+  "confirm_timeout_s": 600,
+  "brave_secret": "BRAVE_API_KEY",
+  "web": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "token_secret": "AGENT_WEB_TOKEN"
+  },
+  "ruoli": {
+    "generico": "",
+    "sviluppatore": "Ruolo: ingegnere software. Leggi il codice esistente prima di modificarlo, fai modifiche minime, esegui i test o il programma per verificare, e riassumi cosa hai cambiato.",
+    "ricercatore": "Ruolo: ricercatore. Se i compiti sono separabili usa delega_agenti (max 3). Cerca sul web e leggi le fonti con fetch_url, confronta piu' fonti, cita gli URL e salva un report in Markdown nel workspace.",
+    "revisore": "Ruolo: revisore. Leggi i file indicati senza modificarli e scrivi in workspace/REVISIONE.md i problemi trovati (bug, sicurezza, chiarezza) in ordine di gravita', con file e riga."
+  },
+  "modo_conferme": "comodo",
+  "cartelle": {
+    "casa (tutta la home)": "/home/lorenzo",
+    "tutto il PC (/)": "/"
+  },
+  "_cartelle": "Altre cartelle di lavoro consentite: nome -> percorso assoluto. Compaiono nel selettore della pagina.",
+  "limiti": {
+    "gemini-3.6-flash": {
+      "rpd": 20,
+      "rpm": 5,
+      "tpm": 250000
+    },
+    "gemini-3.5-flash-lite": {
+      "rpd": 500,
+      "rpm": 15,
+      "tpm": 250000
+    }
+  },
+  "_limiti": "Letti da aistudio.google.com/rate-limit il 26/11/2026 (piano gratuito). Aggiornali se Google li cambia.",
+  "provider": [
+    {
+      "nome": "ollama",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "modello": "qwen3.5:4b",
+      "locale": true,
+      "temperature": 0,
+      "seed": 7,
+      "visione": true
+    },
+    {
+      "nome": "groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "modello": "llama-3.3-70b-versatile",
+      "segreto": "GROQ_API_KEY",
+      "temperature": 0
+    },
+    {
+      "nome": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "modello": "openrouter/free",
+      "segreto": "OPENROUTER_API_KEY",
+      "temperature": 0
+    }
+  ],
+  "_provider": "Riserva quando finisce Gemini, in ordine: prima il modello locale (Ollama, gratis e senza limiti ma piu' lento e meno capace), poi i servizi online se aggiungi tu le chiavi in Infisical (GROQ_API_KEY, OPENROUTER_API_KEY).",
+  "verifica": true,
+  "verifica_tentativi": 2
+}
