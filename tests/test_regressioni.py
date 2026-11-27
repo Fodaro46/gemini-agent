@@ -382,6 +382,24 @@ class TestVerificaSchermo(Base):
         passi = self._passi(("run_shell", "exit=0 --- stdout"))
         self.assertFalse(verifica.controlla("Ho attivato il servizio.", passi, "x", self.ws)["errori"])
 
+    def test_screenshot_automatico_nel_risultato_vale_come_conferma(self):
+        passi = self._passi(("controlla_input", "Fatto (mouse in (5, 5) confermato). [screenshot allegato dopo l'azione, 1920x1080]"))
+        self.assertFalse(verifica.controlla("Ho cliccato il pulsante.", passi, "x", self.ws)["errori"])
+        passi = self._passi(("sequenza_input", "Sequenza eseguita."))
+        self.assertTrue(verifica.controlla("Ho digitato l'indirizzo.", passi, "x", self.ws)["errori"])
+
+    def test_sequenza_input_valida_e_si_ferma_al_primo_errore(self):
+        for bad in ("non json", "[]", "[1]", "[{\"azione\":\"click\",\"x\":1,\"y\":1,\"extra\":1}]", json.dumps([{"azione": "tasti", "tasti": "a"}] * 13)):
+            self.assertTrue(tools.sequenza_input(self.ctx("tutto"), bad).startswith("Errore"), bad)
+        chiamate = []
+        with mock.patch.object(tools, "_input_singolo", side_effect=lambda c, a, *r: chiamate.append(a) or ("Errore: x" if a == "scrivi" else "Fatto.")), \
+             mock.patch.object(tools, "_cattura", return_value=("n.jpg", 10, 10)):
+            out = tools.sequenza_input(self.ctx("tutto"), json.dumps([{"azione": "tasti", "tasti": "a"}, {"azione": "scrivi", "testo": "x"}, {"azione": "tasti", "tasti": "b"}]))
+            self.assertEqual(chiamate, ["tasti", "scrivi"])
+            self.assertIn("interrotta", out)
+            out = tools.sequenza_input(self.ctx("tutto"), json.dumps([{"azione": "tasti", "tasti": "a"}]))
+            self.assertIn("screenshot allegato", out)
+
     def test_il_mouse_fuori_schermo_e_segnalato(self):
         with mock.patch.object(tools.shutil, "which", return_value="/usr/bin/xdotool"), \
              mock.patch.object(tools.subprocess, "run") as run:

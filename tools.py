@@ -533,15 +533,28 @@ def _env_gui():
 SCREEN_DIR = Path.home() / ".local/share/gemini-agent/screens"
 
 
-def screenshot(ctx) -> str:
-    """Cattura lo schermo e lo allega al modello. L'immagine va al provider del modello (Google, nel piano gratuito)."""
-    if not serve_conferma(ctx, "schermo", "CATTURARE lo schermo e mostrarlo al modello? (l'immagine viene inviata al provider del modello)"):
-        return RIFIUTATO
+_MONITOR = {"x": 0, "y": 0}      # origine del monitor ritagliato negli screenshot: serve per tradurre le coordinate in quelle reali
+
+
+def _monitor_reale(env) -> tuple[int, int, int, int] | None:
+    """Geometria del primo monitor realmente collegato (xrandr). Lo schermo virtuale di X puo' essere piu' largo (monitor fantasma):
+    ritagliando sul monitor vero si dimezzano i token dell'immagine e le coordinate restano 1:1 con i pixel."""
+    try:
+        out = subprocess.run(["xrandr", "--query"], env=env, capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(r"^\S+ connected (?:primary )?(\d+)x(\d+)\+(\d+)\+(\d+)", out, re.M)
+    return (int(m.group(3)), int(m.group(4)), int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _cattura(ctx):
+    """Scatta lo schermo e lo allega al modello. Restituisce (nome_file, larghezza, altezza) oppure una stringa di errore."""
     from PIL import Image
     SCREEN_DIR.mkdir(parents=True, exist_ok=True)
     nome = f"scr-{datetime.now():%Y%m%d-%H%M%S}.jpg"
     png = SCREEN_DIR / (nome + ".png")
-    r = subprocess.run(["gnome-screenshot", "-f", str(png)], env=_env_gui(), capture_output=True, text=True, timeout=30)
+    env = _env_gui()
+    r = subprocess.run(["gnome-screenshot", "-f", str(png)], env=env, capture_output=True, text=True, timeout=30)
     for _ in range(60):          # gnome-screenshot puo' terminare prima che il file sia completo: aspetto che sia stabile
         if png.exists():
             dim1 = png.stat().st_size
@@ -552,14 +565,30 @@ def screenshot(ctx) -> str:
     if not png.exists():
         return "Cattura fallita: " + (r.stderr or "nessun errore")[:200]
     im = Image.open(png).convert("RGB")
-    # NIENTE ridimensionamento: le coordinate che il modello legge nello screenshot devono essere identiche ai pixel reali per xdotool
+    mon = _monitor_reale(env)
+    if mon and mon[0] + mon[2] <= im.width and mon[1] + mon[3] <= im.height and (mon[2], mon[3]) != im.size:
+        im = im.crop((mon[0], mon[1], mon[0] + mon[2], mon[1] + mon[3]))
+        _MONITOR.update(x=mon[0], y=mon[1])
+    else:
+        _MONITOR.update(x=0, y=0)
+    # NIENTE ridimensionamento: le coordinate lette nello screenshot devono essere identiche ai pixel reali per xdotool
     if im.width > 4000:
         im.thumbnail((4000, 4000))
-    im.save(SCREEN_DIR / nome, quality=80)
+    im.save(SCREEN_DIR / nome, quality=70)
     png.unlink()
     ctx.immagini.append((SCREEN_DIR / nome).read_bytes())
     ctx.log(f"[{ctx.nome}] screenshot: {nome}")
-    return (f"Screenshot acquisito ({im.width}x{im.height} pixel REALI: le coordinate dell'immagine sono quelle da usare per il click, "
+    return nome, im.width, im.height
+
+
+def screenshot(ctx) -> str:
+    """Cattura lo schermo e lo allega al modello. L'immagine va al provider del modello (Google, nel piano gratuito)."""
+    if not serve_conferma(ctx, "schermo", "CATTURARE lo schermo e mostrarlo al modello? (l'immagine viene inviata al provider del modello)"):
+        return RIFIUTATO
+    r = _cattura(ctx)
+    if isinstance(r, str):
+        return r
+    return (f"Screenshot acquisito ({r[1]}x{r[2]} pixel REALI: le coordinate dell'immagine sono quelle da usare per il click, "
             "senza nessuna conversione); lo trovi allegato a questo messaggio.")
 
 
@@ -620,8 +649,8 @@ def apri(ctx, destinazione: str) -> str:
 AZIONI_INPUT = ("click", "doppio_click", "muovi", "scrivi", "tasti", "scorri")
 
 
-def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", tasti: str = "", scorri: int = 0) -> str:
-    """Mouse e tastiera (xdotool): click, doppio_click, muovi (x,y), scrivi (testo), tasti (es. 'ctrl+l'), scorri (+giu', -su)."""
+def _input_singolo(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", tasti: str = "", scorri: int = 0) -> str:
+    """Una azione di mouse/tastiera (xdotool), con prove concrete. Le coordinate sono quelle dello screenshot (monitor ritagliato)."""
     if not shutil.which("xdotool"):
         return "xdotool non installato: sul PC serve `sudo apt install xdotool`."
     if azione not in AZIONI_INPUT:
@@ -629,12 +658,13 @@ def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", t
     x, y = int(x or 0), int(y or 0)
     if not (0 <= x <= 10000 and 0 <= y <= 10000):
         return "Coordinate non valide."
+    ox, oy = _MONITOR["x"], _MONITOR["y"]
     if azione == "click":
-        cmd, descr = ["mousemove", str(x), str(y), "click", "1"], f"CLICCARE in ({x}, {y})"
+        cmd, descr = ["mousemove", str(x + ox), str(y + oy), "click", "1"], f"CLICCARE in ({x}, {y})"
     elif azione == "doppio_click":
-        cmd, descr = ["mousemove", str(x), str(y), "click", "--repeat", "2", "1"], f"DOPPIO CLIC in ({x}, {y})"
+        cmd, descr = ["mousemove", str(x + ox), str(y + oy), "click", "--repeat", "2", "1"], f"DOPPIO CLIC in ({x}, {y})"
     elif azione == "muovi":
-        cmd, descr = ["mousemove", str(x), str(y)], f"MUOVERE il mouse in ({x}, {y})"
+        cmd, descr = ["mousemove", str(x + ox), str(y + oy)], f"MUOVERE il mouse in ({x}, {y})"
     elif azione == "scrivi":
         if not testo or len(testo) > 2000:
             return "Serve 'testo' (max 2000 caratteri)."
@@ -657,7 +687,7 @@ def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", t
     if azione in ("click", "doppio_click", "muovi"):
         m = subprocess.run(["xdotool", "getmouselocation"], env=env, capture_output=True, text=True, timeout=10)
         mm = re.search(r"x:(\d+) y:(\d+)", m.stdout)
-        if mm and (abs(int(mm.group(1)) - x) > 2 or abs(int(mm.group(2)) - y) > 2):
+        if mm and (abs(int(mm.group(1)) - (x + ox)) > 2 or abs(int(mm.group(2)) - (y + oy)) > 2):
             return f"Errore: il mouse e' in ({mm.group(1)}, {mm.group(2)}) invece che in ({x}, {y}): coordinate fuori dallo schermo? Fai uno screenshot."
         fatti.append(f"mouse in ({x}, {y}) confermato")
     w = subprocess.run(["xdotool", "getactivewindow", "getwindowname"], env=env, capture_output=True, text=True, timeout=10)
@@ -665,6 +695,46 @@ def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", t
         fatti.append(f"finestra attiva: «{w.stdout.strip()[:80]}»")
     return "Fatto (" + "; ".join(fatti) + "). NON basta: fai uno screenshot per vedere l'effetto prima di dire che ha funzionato." if fatti \
         else "Fatto. NON basta: fai uno screenshot per vedere l'effetto prima di dire che ha funzionato."
+
+def _con_screenshot(ctx, esito: str) -> str:
+    """Allega lo screenshot DOPO l'azione nella stessa richiesta: una chiamata al modello in meno per ogni passo."""
+    if esito.startswith(("Errore", "RIFIUTATO", "Coordinate", "Azione non valida", "Serve", "Combinazione", "xdotool non")):
+        return esito
+    time.sleep(0.4)                       # lascio al programma il tempo di reagire
+    r = _cattura(ctx)
+    if isinstance(r, str):
+        return esito + " " + r
+    return esito + f" [screenshot allegato dopo l'azione, {r[1]}x{r[2]}]"
+
+
+def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", tasti: str = "", scorri: int = 0, schermata: bool = True) -> str:
+    """Mouse e tastiera (xdotool) + screenshot automatico dopo l'azione (schermata=False per saltarlo)."""
+    esito = _input_singolo(ctx, azione, x, y, testo, tasti, scorri)
+    return _con_screenshot(ctx, esito) if schermata else esito
+
+
+def sequenza_input(ctx, azioni: str) -> str:
+    """Esegue in fila fino a 12 azioni (JSON) e fa UN solo screenshot alla fine. Si ferma al primo errore."""
+    try:
+        lista = json.loads(azioni)
+    except (TypeError, ValueError):
+        return "Errore: 'azioni' deve essere un JSON, es. [{\"azione\":\"tasti\",\"tasti\":\"ctrl+l\"},{\"azione\":\"scrivi\",\"testo\":\"ciao\"}]"
+    if not isinstance(lista, list) or not (1 <= len(lista) <= 12) or not all(isinstance(a, dict) for a in lista):
+        return "Errore: servono da 1 a 12 azioni, ognuna un oggetto."
+    campi = {"azione", "x", "y", "testo", "tasti", "scorri"}
+    righe = []
+    for n, a in enumerate(lista, 1):
+        if set(a) - campi:
+            return f"Errore: azione {n} con campi non ammessi."
+        try:
+            esito = _input_singolo(ctx, a.get("azione", ""), a.get("x", 0), a.get("y", 0), a.get("testo", ""), a.get("tasti", ""), a.get("scorri", 0))
+        except (TypeError, ValueError):
+            esito = "Errore: argomenti non validi"
+        righe.append(f"{n}. {a.get('azione')}: {esito}")
+        if esito.startswith(("Errore", "RIFIUTATO", "Coordinate", "Azione non valida", "Serve", "Combinazione", "xdotool non")):
+            return "Errore: sequenza interrotta.\n" + "\n".join(righe)
+        time.sleep(0.25)
+    return _con_screenshot(ctx, "Sequenza eseguita.\n" + "\n".join(righe))
 
 
 # ---------------------------------------------------------------- registro
@@ -719,7 +789,7 @@ def estrai_testo(ctx, path: str) -> str:
 
 
 TOOLS = {f.__name__: f for f in
-         (list_dir, read_file, write_file, edit_file, delete_file, run_shell, fetch_url, web_search, delega_agenti, git, screenshot, finestre, stato_pc, apri, controlla_input, estrai_testo, installa_pacchetto)}
+         (list_dir, read_file, write_file, edit_file, delete_file, run_shell, fetch_url, web_search, delega_agenti, git, screenshot, finestre, stato_pc, apri, controlla_input, sequenza_input, estrai_testo, installa_pacchetto)}
 
 
 def _s(desc, props, required):
@@ -760,11 +830,18 @@ DECLARATIONS = [
     {"name": "apri", "description": "Apre un URL http(s) nel browser predefinito o avvia un'app (nome del .desktop, es. brave-browser).",
      "parameters": {"type": "object", "properties": {"destinazione": {"type": "string", "description": "URL o nome app"}}, "required": ["destinazione"]}},
     {"name": "controlla_input", "description": "Controlla mouse e tastiera: click, doppio_click, muovi (x,y), scrivi (testo), tasti (es. 'ctrl+l'), scorri. "
-                                               "Prima fai uno screenshot per conoscere le coordinate.",
+                                               "Dopo l'azione ricevi GIA' uno screenshot (non chiamare screenshot di nuovo). Le coordinate sono quelle dell'ultimo screenshot. "
+                                               "Per piu' azioni di fila usa sequenza_input.",
      "parameters": {"type": "object", "properties": {
          "azione": {"type": "string", "enum": list(AZIONI_INPUT)}, "x": {"type": "integer"}, "y": {"type": "integer"},
-         "testo": {"type": "string"}, "tasti": {"type": "string"}, "scorri": {"type": "integer", "description": "positivo = giu', negativo = su"}},
+         "testo": {"type": "string"}, "tasti": {"type": "string"}, "scorri": {"type": "integer", "description": "positivo = giu', negativo = su"},
+         "schermata": {"type": "boolean", "description": "false per non ricevere lo screenshot dopo l'azione"}},
          "required": ["azione"]}},
+    {"name": "sequenza_input", "description": "Esegue FINO A 12 azioni di mouse/tastiera in una sola richiesta e ti restituisce UN solo screenshot finale "
+                                              "(risparmia quota). Usala quando conosci gia' i passi, es. ctrl+l, scrivi l'indirizzo, Return.",
+     "parameters": {"type": "object", "properties": {"azioni": {"type": "string", "description":
+         'JSON: lista di oggetti {"azione","x","y","testo","tasti","scorri"}, es. [{"azione":"tasti","tasti":"ctrl+l"},{"azione":"scrivi","testo":"claude.ai"},{"azione":"tasti","tasti":"Return"}]'}},
+                    "required": ["azioni"]}},
     {"name": "installa_pacchetto", "description": "Installa UN pacchetto di sistema con apt (es. xdotool). Chiede SEMPRE la conferma all'utente. "
                                                  "Se non e' ancora abilitato ti dice il comando che l'utente deve eseguire sul PC. NON usare sudo nella shell.",
      "parameters": {"type": "object", "properties": {"nome": {"type": "string", "description": "Nome del pacchetto apt"},

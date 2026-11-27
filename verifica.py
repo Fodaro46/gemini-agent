@@ -17,6 +17,8 @@ INSUCCESSO = re.compile(r"^(Errore|RIFIUTATO|Comando rifiutato|Comando bloccato|
                         r"Destinazione non valida|Cattura fallita|Ricerca web fallita|Non e'|Questa cartella|Serve |xdotool non|"
                         r"Coordinate non valide|Combinazione|Timeout|exit=[1-9])", re.I)
 
+INPUT = ("controlla_input", "sequenza_input")      # azioni di mouse/tastiera
+
 # verbo (radice) -> categoria di azione
 VERBI = {
     "creat": "scrittura", "scritt": "scrittura", "salvat": "scrittura", "generat": "scrittura", "aggiunt": "scrittura",
@@ -80,11 +82,12 @@ def _soddisfatta(cat: str, passi: list[Passo]) -> bool:
     if cat == "schermo":
         # Azioni sullo schermo: servono (1) un'azione di mouse/tastiera riuscita e (2) uno screenshot riuscito fatto DOPO l'ultima azione.
         # Se in questo turno non c'e' stato nessun input, il verbo riguarda altro (es. un servizio avviato da shell): vale come esecuzione.
-        ultimo_input = max((i for i, p in enumerate(passi) if p.strumento == "controlla_input"), default=-1)
+        ultimo_input = max((i for i, p in enumerate(passi) if p.strumento in INPUT), default=-1)
         if ultimo_input < 0:
             return _soddisfatta("esecuzione", passi)
-        return passi[ultimo_input].ok and any(p.ok for p in passi[ultimo_input + 1:] if p.strumento == "screenshot")
-    return any(p.strumento in ("run_shell", "apri", "controlla_input", "git", "delega_agenti") for p in ok)
+        return passi[ultimo_input].ok and ("[screenshot allegato dopo l'azione" in passi[ultimo_input].risultato
+                                           or any(p.ok for p in passi[ultimo_input + 1:] if p.strumento == "screenshot"))
+    return any(p.strumento in ("run_shell", "apri", "controlla_input", "sequenza_input", "git", "delega_agenti") for p in ok)
 
 
 def _riferimento(obiettivo: str, passi: list[Passo]) -> str:

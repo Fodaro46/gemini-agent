@@ -39,7 +39,7 @@ SYSTEM = (
     "(2) le cartelle con credenziali (.ssh, .config, chiavi, .env) non sono leggibili; "
     "(3) le conferme dipendono dalla modalita' scelta dall'utente nel menu sotto la casella di scrittura (Sempre / Se rischioso / Mai); "
     "(4) per cliccare e digitare serve xdotool (installabile con installa_pacchetto); "
-    "(5) puoi vedere lo schermo con screenshot (dopo OGNI click o digitazione fai un nuovo screenshot e controlla davvero che sia successo cio' che volevi: se non lo vedi, dillo, non dire mai di aver fatto qualcosa che non hai visto sullo schermo), elencare le finestre con finestre e aprire siti o app con apri."
+    "(5) puoi vedere lo schermo con screenshot (controlla_input ti restituisce gia' lo screenshot dopo l'azione: guardalo e controlla davvero che sia successo cio' che volevi: se non lo vedi, dillo, non dire mai di aver fatto qualcosa che non hai visto sullo schermo), elencare le finestre con finestre e aprire siti o app con apri."
 )
 
 
