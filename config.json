@@ -74,6 +74,12 @@
     }
   ],
   "_provider": "Riserva quando finisce Gemini, in ordine: prima il modello locale (Ollama, gratis e senza limiti ma piu' lento e meno capace), poi i servizi online se aggiungi tu le chiavi in Infisical (GROQ_API_KEY, OPENROUTER_API_KEY).",
-  "verifica": true,
+  "_verifica": "Controlli deterministici sulle risposte, per modello. 'rigida' = modelli deboli (azioni, file, schermo, testi digitati + regole extra nel prompt); 'base' = solo azioni e file dichiarati; 'nessuna' = modelli forti, nessun controllo. 'modelli' vale per nome (anche prefisso) e batte 'predefinito'.",
+  "verifica": {
+    "predefinito": "rigida",
+    "modelli": {
+      "gemini-3.6-flash": "base"
+    }
+  },
   "verifica_tentativi": 2
 }

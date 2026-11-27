@@ -56,6 +56,18 @@ questo codice e fai passare la suite", "confronta 3 librerie per X cercando sul 
 
 ## Verifica automatica (anti-allucinazioni) e test
 Ogni risposta viene confrontata con quello che gli strumenti hanno DAVVERO fatto (`verifica.py`, regole fisse, nessun altro modello): se il modello dice "ho creato il file X" ma non risulta nessuna scrittura riuscita, o il file non esiste, l'agente riceve una contestazione e deve eseguire l'azione o correggersi (max 2 volte); se resta una menzogna la pagina mostra "Non verificato" con i motivi. Una risposta vuota dopo l'uso di strumenti viene contestata. Dentro gli strumenti: dopo ogni scrittura/modifica/cancellazione il file viene riletto ("verificato").
+
+**I controlli sono pensati per i modelli deboli** (Flash-Lite, Qwen locale). Con un modello forte sono superflui e si spengono per modello in `config.json`:
+
+```json
+"verifica": {"predefinito": "rigida", "modelli": {"gemini-3.6-flash": "base", "il-tuo-modello-forte": "nessuna"}}
+```
+
+- `rigida`: azioni dichiarate, file, azioni sullo schermo (serve uno screenshot dopo l'ultimo click), testi da digitare + regole extra nel prompt.
+- `base`: solo azioni e file dichiarati.
+- `nessuna`: nessun controllo, nessuna contestazione, nessun costo extra di richieste.
+
+Il livello e' quello del modello che ha davvero prodotto la risposta (anche dopo un passaggio al fallback). I vecchi `true`/`false` funzionano ancora.
 - Test deterministici (modello finto, senza rete): `.venv/bin/python -m unittest discover -s tests -v`
 - Prove sul modello di riserva con esiti oggettivi: `.venv/bin/python evals/qwen_eval.py --rep 3` (risultati in `evals/ultimo_risultato.json`)
 

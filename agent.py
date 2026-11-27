@@ -39,7 +39,15 @@ SYSTEM = (
     "(2) le cartelle con credenziali (.ssh, .config, chiavi, .env) non sono leggibili; "
     "(3) le conferme dipendono dalla modalita' scelta dall'utente nel menu sotto la casella di scrittura (Sempre / Se rischioso / Mai); "
     "(4) per cliccare e digitare serve xdotool (installabile con installa_pacchetto); "
-    "(5) puoi vedere lo schermo con screenshot (se sullo schermo c'e' GIA' il risultato richiesto (es. una chat con 'ciao' che non hai scritto tu) NON e' una prova: devi aver eseguito tu le azioni, e per scrivere un testo serve un'azione 'scrivi' vera; controlla_input ti restituisce gia' lo screenshot dopo l'azione: guardalo e controlla davvero che sia successo cio' che volevi: se non lo vedi, dillo, non dire mai di aver fatto qualcosa che non hai visto sullo schermo), elencare le finestre con finestre e aprire siti o app con apri."
+    "(5) puoi vedere lo schermo con screenshot, elencare le finestre con finestre e aprire siti o app con apri."
+)
+
+# Regole in piu' per i modelli DEBOLI (livello di verifica "rigida", vedi verifica.livello): i modelli forti non ne hanno bisogno.
+SCHERMO_RIGIDO = (
+    " Sullo schermo: se c'e' GIA' il risultato richiesto (es. una chat con 'ciao' che non hai scritto tu) NON e' una prova: "
+    "devi aver eseguito tu le azioni, e per scrivere un testo serve un'azione 'scrivi' vera. controlla_input ti restituisce gia' lo screenshot "
+    "dopo l'azione: guardalo e controlla davvero che sia successo cio' che volevi; se non lo vedi, dillo, non dire mai di aver fatto "
+    "qualcosa che non hai visto sullo schermo."
 )
 
 
@@ -167,6 +175,7 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
     max_steps = max_steps or cfg["max_steps"] or None      # 0 in config = nessun limite di passi (si ferma col pulsante Stop)
     if ctx.depth == 0:
         ctx.delega = lambda compiti: avvia_sotto_agenti(ctx, sessione, compiti)
+    liv0 = verifica.livello(cfg, model)          # livello di verifica del modello con cui si parte (decide le regole extra nel prompt)
     parti = [types.Part(text=obiettivo)]
     for al in allegati or []:                       # allegati: {nome, tipo, mime, dati, percorso?}
         if al["tipo"] == "testo":
@@ -179,7 +188,7 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
     sessione.contents.append(types.Content(role="user", parts=parti))
     config = types.GenerateContentConfig(
         # La data odierna evita che il modello creda di essere ancora nel suo anno di addestramento.
-        system_instruction=SYSTEM + (" " + ruolo if ruolo else "") + f" Data di oggi: {datetime.now():%Y-%m-%d}.",
+        system_instruction=SYSTEM + (SCHERMO_RIGIDO if liv0 == "rigida" else "") + (" " + ruolo if ruolo else "") + f" Data di oggi: {datetime.now():%Y-%m-%d}.",
         tools=[types.Tool(function_declarations=tools.declarations(ctx.depth))],
         # Gestiamo noi il ciclo: cosi' contiamo i passi e chiediamo le conferme.
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
@@ -191,7 +200,7 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
     catena += [("prov", p) for p in llm.PROVIDER]
     nome_backend = lambda t, x: x if t == "gemini" else f"{x['nome']}:{x['modello']}"
     idx = next((i for i, (t, x) in enumerate(catena) if not USO.e_esaurito(nome_backend(t, x))), 0)  # salta i gia' esauriti oggi
-    sistema = SYSTEM + (" " + ruolo if ruolo else "") + f" Data di oggi: {datetime.now():%Y-%m-%d}."
+    sistema = SYSTEM + (SCHERMO_RIGIDO if liv0 == "rigida" else "") + (" " + ruolo if ruolo else "") + f" Data di oggi: {datetime.now():%Y-%m-%d}."
     correzioni = 0
     for passo in (range(1, max_steps + 1) if max_steps else itertools.count(1)):
         while True:
@@ -229,11 +238,12 @@ def esegui_obiettivo(ctx, sessione: Sessione, obiettivo: str, model=None, max_st
                 ctx.log(f"[{ctx.nome} #{passo}] {p.text.strip()}")
         if not chiamate:
             finale = "".join(p.text or "" for p in risposta.parts or [] if not p.thought)
-            if cfg.get("verifica", True):
+            liv = verifica.livello(cfg, nome_backend(*catena[idx]).split(":", 1)[-1] if catena[idx][0] == "prov" else catena[idx][1])
+            if liv != "nessuna":
                 # Verifica deterministica: la risposta e' confrontata con gli strumenti realmente eseguiti (verifica.py)
                 con_all = any(p.inline_data for c in sessione.contents if c.role == "user" and not any(q.function_response for q in (c.parts or []))
                               for p in (c.parts or []))
-                esito = verifica.controlla(finale, verifica.libro_da_cronologia(sessione.contents), obiettivo, ctx.workspace, con_allegati=con_all)
+                esito = verifica.controlla(finale, verifica.libro_da_cronologia(sessione.contents), obiettivo, ctx.workspace, con_allegati=con_all, livello=liv)
                 ctx.verifica = esito
                 if esito["errori"] and correzioni < cfg.get("verifica_tentativi", 2):
                     correzioni += 1

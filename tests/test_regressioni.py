@@ -419,6 +419,32 @@ class TestVerificaSchermo(Base):
         self.assertTrue(out.startswith("Errore: il mouse e' in (1919, 1079)"), out)
 
 
+class TestLivelliVerifica(Base):
+    """La verifica deterministica e' pensata per i modelli deboli: per quelli forti si spegne o si alleggerisce da config."""
+
+    def test_livello_per_modello(self):
+        cfg = {"verifica": {"predefinito": "rigida", "modelli": {"forte": "nessuna", "gemini-3.6": "base"}}}
+        self.assertEqual(verifica.livello(cfg, "forte"), "nessuna")
+        self.assertEqual(verifica.livello(cfg, "forte-v2"), "nessuna")          # vale anche il prefisso
+        self.assertEqual(verifica.livello(cfg, "gemini-3.6-flash"), "base")
+        self.assertEqual(verifica.livello(cfg, "qwen3.5:4b"), "rigida")
+        self.assertEqual(verifica.livello({"verifica": True}, "x"), "rigida")      # vecchia forma
+        self.assertEqual(verifica.livello({"verifica": False}, "x"), "nessuna")
+        self.assertEqual(verifica.livello({}, "x"), "rigida")
+
+    def test_base_non_applica_le_regole_dello_schermo(self):
+        p = [verifica.Passo("sequenza_input", {"azioni": "[]"}, "Sequenza eseguita.")]
+        ob = 'scrivi "ciao" e invia'
+        self.assertTrue(verifica.controlla("Ho cliccato e ciao e' visibile.", p, ob, self.ws, livello="rigida")["errori"])
+        self.assertFalse(verifica.controlla("Ho cliccato e ciao e' visibile.", p, ob, self.ws, livello="base")["errori"])
+        # la verifica base controlla ancora le menzogne sui file
+        self.assertTrue(verifica.controlla("Ho creato il file x.txt.", [], "crea x.txt", self.ws, livello="base")["errori"])
+
+    def test_nessuna_non_contesta_e_il_prompt_extra_manca(self):
+        self.assertIn("Sullo schermo", agent.SCHERMO_RIGIDO)
+        self.assertNotIn("Sullo schermo", agent.SYSTEM)
+
+
 class TestConversione(Base):
     def test_messaggio_vuoto_dell_assistente_non_viene_inviato(self):
         contents = [types.Content(role="user", parts=[types.Part(text="ciao")]),

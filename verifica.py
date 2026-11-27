@@ -126,7 +126,21 @@ def _esiste(ws: Path, nome: str) -> bool:
         return False
 
 
-def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_allegati: bool = False) -> dict:
+def livello(cfg: dict, modello: str) -> str:
+    """Quanto controllare le risposte di QUESTO modello: 'nessuna' (modelli forti), 'base' (solo azioni e file dichiarati) o
+    'rigida' (anche schermo e testi digitati: per i modelli deboli). Config: "verifica": {"predefinito": "rigida", "modelli": {"nome": "nessuna"}}.
+    Sono ammessi anche i vecchi valori true (= rigida) e false (= nessuna)."""
+    v = cfg.get("verifica", True)
+    if isinstance(v, dict):
+        mod = v.get("modelli", {})
+        trovato = mod.get(modello) or next((lv for nome, lv in mod.items() if modello.startswith(nome)), None)
+        v = trovato or v.get("predefinito", "rigida")
+    if v is True:
+        return "rigida"
+    return v if v in ("nessuna", "base", "rigida") else ("rigida" if v else "nessuna")
+
+
+def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_allegati: bool = False, livello: str = "rigida") -> dict:
     """Confronta la risposta con i fatti. Restituisce {"errori": [...], "avvisi": [...], "ok": bool}."""
     errori, avvisi = [], []
     if not risposta.strip() and passi:
@@ -136,7 +150,7 @@ def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_a
     ultimo_esito = {}                                # strumento -> ultimo risultato (per 'esito ignorato')
     for p in passi:
         ultimo_esito[p.strumento] = p
-    if not re.search(r"\b(non|impossibile|purtroppo|nessun)\b", risposta, re.I):
+    if livello == "rigida" and not re.search(r"\b(non|impossibile|purtroppo|nessun)\b", risposta, re.I):
         for testo in RICH_TESTO.findall(obiettivo):        # il compito chiedeva di scrivere un testo: serve la digitazione vera
             if not _testo_digitato(passi, testo):
                 errori.append(f"Il compito chiedeva di scrivere «{testo}» ma nessuna azione 'scrivi' con quel testo e' stata eseguita: "
@@ -146,6 +160,8 @@ def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_a
         if not m or re.search(r"\b(non|né|mai|impossibile|senza|purtroppo)\b", frase, re.I):
             continue                    # niente affermazione, o e' una negazione ("non ho potuto creare...")
         cat = VERBI[m.group(1).lower()]
+        if cat == "schermo" and livello != "rigida":
+            cat = "esecuzione"
         if not _soddisfatta(cat, passi):
             errori.append(f"Dici «{frase[:110]}» ma non risulta nessuna azione di tipo '{cat}' eseguita con successo"
                           + (" E CONFERMATA da uno screenshot fatto dopo l'ultimo click/tasto: fallo, guarda, e riporta solo cio' che vedi." if cat == "schermo" else "."))
