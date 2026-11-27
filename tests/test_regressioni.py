@@ -632,3 +632,30 @@ class TestWebRegressioni(TestWeb):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestRevisioneUI(TestWeb):
+    def test_conversazione_aperta_riceve_tutto_il_registro(self):
+        c = self.entra(self.app([testo("uno")]))
+        rid = c.post("/api/nuovo", json={"obiettivo": "primo", "modo": "chiedi"}).get_json()["id"]
+        self.aspetta(c, lambda s: s["runs"] and not s["runs"][0]["attivo"])
+        run = web.RUNS[rid]
+        for i in range(30):
+            run.add(f"riga {i}")
+        self.assertEqual(len(c.get("/api/stato").get_json()["runs"][0]["log"]), 8)                 # le altre: solo le ultime righe
+        pieno = c.get("/api/stato?run=" + rid).get_json()["runs"][0]["log"]
+        self.assertGreater(len(pieno), 30)                                                           # quella aperta: tutto
+        self.assertTrue(any(r.split(" ", 1)[1].startswith("▶ primo") for r in pieno))
+
+    def test_pagina_senza_collisione_di_classi(self):
+        html = (RADICE / "pagina.html").read_text(encoding="utf-8")
+        self.assertNotIn("classList.add('ch')", html)          # .ch e' lo stile degli allegati: la freccia diventava un cerchio
+        for nome in ("sequenza_input", "ui_elenca", "ui_azione"):
+            self.assertIn(nome + ":[", html)                    # i nuovi strumenti hanno una descrizione leggibile
+
+
+class TestHelperNonDigitaAllaCieca(unittest.TestCase):
+    def test_scrivi_senza_fuoco_rifiuta(self):
+        sorgente = (RADICE / "scripts" / "atspi_helper.py").read_text(encoding="utf-8")
+        self.assertIn("StateType.FOCUSED", sorgente)
+        self.assertIn("non digito", sorgente)

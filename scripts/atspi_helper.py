@@ -145,8 +145,12 @@ def main():
                 pass
         try:
             o.get_component_iface().grab_focus()
+            a_fuoco = o.get_state_set().contains(Atspi.StateType.FOCUSED)
         except Exception:
-            pass
+            a_fuoco = False
+        if not a_fuoco:                                                   # mai digitare alla cieca: il testo finirebbe in un'altra finestra
+            return {"ok": False, "errore": f"non riesco a mettere il cursore nel campo «{e['nome']}»: non digito. Prova azione 'click' sul campo e poi 'scrivi'.",
+                    "elemento": info}
         return {"ok": True, "metodo": "tastiera", "elemento": info}      # il chiamante digita con xdotool nell'elemento che ha il fuoco
     try:                                                                  # click: prima l'azione nativa, poi le coordinate
         ai = o.get_action_iface()

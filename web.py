@@ -274,9 +274,9 @@ def crea_app(cfg, ws, chiave, client, limiter, token):
         with L:
             d = {"id": r.id, "nome": r.nome, "stato": r.stato, "obiettivo": r.obiettivo, "ruolo": r.ruolo,
                  "attivo": r.attivo(), "risultato": r.risultato, "inizio": r.inizio, "cartella": r.cartella, "modo": r.ctx.modo if r.ctx else None,
-                 "sid": r.sessione.sid if r.sessione else None, "turni": r.turni,
+                 "sid": r.sessione.sid if r.sessione else None, "turni": [dict(t) for t in r.turni],   # copie: il JSON si scrive fuori dal lock
                  "conferme": [{"id": c["id"], "testo": c["testo"]} for c in r.conferme],
-                 "log": r.log if completo else r.log[-8:]}
+                 "log": list(r.log) if completo else r.log[-8:]}
         return d
 
     def _oggi():
@@ -286,8 +286,9 @@ def crea_app(cfg, ws, chiave, client, limiter, token):
     @app.get("/api/stato")
     @protetto
     def stato():
+        aperta = request.args.get("run")         # la conversazione aperta riceve il registro completo: serve a mettere ogni passo sotto il suo messaggio
         with L:
-            runs = [descrivi(r) for r in reversed(list(RUNS.values()))]
+            runs = [descrivi(r, r.id == aperta) for r in reversed(list(RUNS.values()))]
         return jsonify(bloccato=audit.bloccato(), oggi=_oggi(), richieste=limiter.total, rpm=cfg["requests_per_minute"], modello=cfg["model"],
                        ruoli=list(cfg["ruoli"]), cartelle=list(cfg.get("cartelle", {})), modo=cfg.get("modo_conferme", "comodo"), runs=runs)
 

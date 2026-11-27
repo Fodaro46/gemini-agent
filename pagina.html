@@ -63,7 +63,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .steps{margin:6px 0 10px}
 .steps>.h{display:inline-flex;align-items:center;gap:8px;color:var(--tx2);font-size:13px;padding:4px 0;cursor:pointer;user-select:none}
 .steps>.h:hover{color:var(--tx)}
-.steps>.h .ic{transition:transform .15s}.steps.open>.h .ic.ch{transform:rotate(90deg)}
+.steps>.h .ic{transition:transform .15s}.steps.open>.h .ic.chv{transform:rotate(90deg)}
 .steps .l{margin:2px 0 0 7px;padding-left:16px;border-left:1px solid var(--line)}
 .step{display:flex;gap:10px;align-items:flex-start;padding:4px 0;font-size:13px;color:var(--tx2);word-break:break-word}
 .step .ic{margin-top:3px;color:var(--tx3)}.step.say{font-style:italic}
@@ -263,7 +263,7 @@ const $=s=>document.querySelector(s),NS='http://www.w3.org/2000/svg';
 const DESC={generico:'Generico: usa tutti gli strumenti',sviluppatore:'Sviluppatore: legge il codice, modifica poco, esegue i test',ricercatore:'Ricercatore: cerca sul web, legge le fonti, scrive un report',revisore:'Revisore: legge i file e scrive REVISIONE.md'};
 const DESCMODO={chiedi:'Conferme: ogni comando, modifica, click e installazione chiede il tuo ok.',comodo:'Conferme: solo le azioni rischiose.',tutto:'Conferme: mai (sudo e simili restano bloccati).'};
 const ESEMPI=[['file','Riassumi i file del workspace in un indice'],['search','Cerca sul web le novità su Python 3.14 e scrivi report.md'],['terminal','Rivedi il codice nel workspace e segnala i bug']];
-const ICN={screenshot:'image',finestre:'window',stato_pc:'cpu',apri:'globe',controlla_input:'mouse',list_dir:'folder',read_file:'file',write_file:'pencil',edit_file:'pencil',delete_file:'trash',run_shell:'terminal',fetch_url:'globe',web_search:'search',delega_agenti:'users',git:'git'};
+const ICN={screenshot:'image',finestre:'window',stato_pc:'cpu',apri:'globe',controlla_input:'mouse',sequenza_input:'mouse',ui_elenca:'list',ui_azione:'mouse',list_dir:'folder',read_file:'file',write_file:'pencil',edit_file:'pencil',delete_file:'trash',run_shell:'terminal',fetch_url:'globe',web_search:'search',delega_agenti:'users',git:'git'};
 function ic(n){const s=document.createElementNS(NS,'svg');s.setAttribute('class','ic');const u=document.createElementNS(NS,'use');u.setAttribute('href','#i-'+n);s.append(u);return s}
 async function api(p,body){
   const r=await fetch(p,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -302,7 +302,8 @@ function evento(riga){
   const s=resto.match(/^strumento: (\w+)\((.*)\)$/s);
   if(s){const [,fn,a]=s;const D={run_shell:['Esegue ',arg(a,'command')],write_file:['Scrive ',arg(a,'path')],edit_file:['Modifica ',arg(a,'path')],read_file:['Legge ',arg(a,'path')],
       delete_file:['Cancella ',arg(a,'path')],list_dir:['Elenca ',arg(a,'path')||'il workspace'],web_search:['Cerca ',arg(a,'query')],fetch_url:['Legge ',arg(a,'url')],delega_agenti:['Delega a sotto-agenti',''],
-      git:['Git ',arg(a,'azione')],screenshot:['Cattura lo schermo',''],finestre:['Elenca le finestre aperte',''],stato_pc:['Controlla lo stato del PC',''],apri:['Apre ',arg(a,'destinazione')],controlla_input:['Input: ',(arg(a,'azione')+' '+(arg(a,'testo')||arg(a,'tasti')||'')).trim()]};
+      git:['Git ',arg(a,'azione')],screenshot:['Cattura lo schermo',''],finestre:['Elenca le finestre aperte',''],stato_pc:['Controlla lo stato del PC',''],apri:['Apre ',arg(a,'destinazione')],controlla_input:['Input: ',(arg(a,'azione')+' '+(arg(a,'testo')||arg(a,'tasti')||'')).trim()],
+      sequenza_input:['Sequenza di input sullo schermo',''],ui_elenca:['Legge i pulsanti di ',arg(a,'app')],ui_azione:['Interfaccia: '+(arg(a,'azione')||'click')+' su ',arg(a,'nome')]};
     const d=D[fn]||[fn,''];return {sotto,i:ICN[fn]||'terminal',t:d[0],c:d[1]}}
   const sc=resto.match(/^screenshot: (scr-[\d-]+\.jpg)$/);if(sc)return {sotto,i:'image',t:'Schermo catturato',img:sc[1]};
   if(/^avviato:/.test(resto))return {sotto,i:'users',t:'Sotto-agente avviato: '+resto.slice(9)};
@@ -339,7 +340,7 @@ function renderLista(){
 function passiBox(lista,attivo,chiave){
   const open=aperti.has(chiave)||attivo,box=el('div','steps'+(open?' open':'')),h=el('div','h');
   if(attivo){h.append(el('span','spin'),document.createTextNode('Sta lavorando…'))}
-  else{const c=ic('chev');c.classList.add('ch');h.append(c,document.createTextNode(lista.length===1?'1 azione':lista.length+' azioni'))}
+  else{const c=ic('chev');c.classList.add('chv');h.append(c,document.createTextNode(lista.length===1?'1 azione':lista.length+' azioni'))}
   if(!attivo)h.onclick=()=>{aperti.has(chiave)?aperti.delete(chiave):aperti.add(chiave);sigThread='';renderThread()};
   box.append(h);
   if(open&&lista.length){const l=el('div','l');(attivo?lista.slice(-6):lista).forEach(e=>{const r=el('div','step'+(e.say?' say':''));r.append(ic(e.i));
@@ -368,7 +369,8 @@ function renderThread(){
   const col=$('#col');let sig,build;const r=scelta(sel);
   if(!sel){sig='nuovo';build=()=>benvenuto(col)}
   else if(r){sig=JSON.stringify([r.id,r.turni,r.log.length,r.log[r.log.length-1],r.stato,r.attivo,[...aperti]]);
-    build=()=>{const seg=segmenti(r.log);r.turni.forEach((t,i)=>{const ult=i===r.turni.length-1;turno(col,t.q,passi(seg[i]||[]),t.a,ult&&r.attivo,r.id+i,r.stato,t.verifica,t.allegati)})}}
+    build=()=>{const seg=segmenti(r.log),off=r.turni.length-seg.length;   // il registro puo' essere tagliato in testa: i segmenti valgono per gli ULTIMI turni
+      r.turni.forEach((t,i)=>{const ult=i===r.turni.length-1;turno(col,t.q,passi(seg[i-off]||[]),t.a,ult&&r.attivo,r.id+i,r.stato,t.verifica,t.allegati)})}}
   else if(sel.t==='sess'){const d=CACHE[sel.sid];if(!d){sig='carica';build=()=>col.append(el('div','vuoto','Carico la conversazione…'))}
     else{sig='s'+sel.sid+[...aperti];build=()=>d.turni.forEach((t,i)=>turno(col,t.q,passi(t.log),t.a,false,sel.sid+i,'finito'))}}
   else{sig='x';build=()=>col.append(el('div','vuoto','Conversazione non più disponibile'))}
@@ -391,7 +393,9 @@ function renderComposer(){
 function sheet(){
   const lista=[];(STATO?.runs||[]).forEach(r=>r.conferme.forEach(k=>lista.push({r,k})));
   document.title=(lista.length?`(${lista.length}) Conferma · `:'')+'Gemini agent';
-  const sh=$('#sheet');sh.style.display=lista.length?'block':'none';if(!lista.length){vibrato=0;return}
+  const sh=$('#sheet');sh.style.display=lista.length?'block':'none';
+  $('#thread').style.paddingBottom=lista.length?(sh.offsetHeight+16)+'px':'';    // la richiesta di conferma non copre l'ultimo messaggio
+  if(!lista.length){vibrato=0;return}
   const x=lista[0],tx=x.k.testo,nl=tx.indexOf('\n');
   $('#s-tit').textContent=nl>0?tx.slice(0,nl).replace(/:$/,''):'Azione da approvare';
   $('#s-testo').textContent=(nl>0?tx.slice(nl+1):tx).trim();
@@ -410,8 +414,8 @@ function vai(v){vista=v;document.body.classList.remove('menu');
   sigLista='';if(v==='consumi')caricaConsumi();if(v==='file')caricaFile();if(v==='registro')caricaRegistro();render()}
 async function apri(s){sel=s;sigThread='';document.body.classList.remove('menu');
   if(s&&s.t==='sess'&&!CACHE[s.sid]){vai('chat');const d=await api('/api/sessione/'+s.sid);if(d){CACHE[s.sid]=d;sigThread=''}}
-  vai('chat');$('#ob').focus()}
-async function tick(){const s=await api('/api/stato');if(s){STATO=s;
+  vai('chat');$('#ob').focus();if(s&&s.t==='run')tick()}
+async function tick(){const s=await api('/api/stato'+(sel&&sel.t==='run'?'?run='+encodeURIComponent(sel.id):''));if(s){STATO=s;
   if(!$('#ruolo').options.length){s.ruoli.forEach(r=>$('#ruolo').add(new Option(r.charAt(0).toUpperCase()+r.slice(1),r)));let m=s.modo;try{m=localStorage.getItem('modo')||m}catch(_){}modo=m;$('#modo').value=modo;
     if(s.cartelle.length){const c=$('#cartella');c.add(new Option('Workspace',''));s.cartelle.forEach(n=>c.add(new Option(n,n)));c.style.display=''}}
   render()}}
@@ -490,7 +494,7 @@ function disegnaConsumi(d){
 async function caricaConsumi(){if(vista!=='consumi')return;const d=await api('/api/consumi');if(d&&vista==='consumi'){const th=$('#v-consumi .pag');const y=th.scrollTop;disegnaConsumi(d);th.scrollTop=y}}
 
 /* ---- registro e blocco */
-const DET={run_shell:'command',write_file:'path',edit_file:'path',read_file:'path',delete_file:'path',list_dir:'path',web_search:'query',fetch_url:'url',apri:'destinazione',git:'azione',controlla_input:'azione'};
+const DET={run_shell:'command',write_file:'path',edit_file:'path',read_file:'path',delete_file:'path',list_dir:'path',web_search:'query',fetch_url:'url',apri:'destinazione',git:'azione',controlla_input:'azione',ui_elenca:'app',ui_azione:'nome'};
 async function caricaRegistro(){if(vista!=='registro')return;const d=await api('/api/registro?n=300');if(!d||vista!=='registro')return;
   const c=$('#reg');c.replaceChildren();c.append(el('p','lead','Tutto quello che gli agenti hanno fatto sul PC, dal più recente. I segreti sono oscurati.'));
   const s=el('div','sec');if(!d.righe.length)s.append(el('div','vuoto','Nessuna azione registrata'));
