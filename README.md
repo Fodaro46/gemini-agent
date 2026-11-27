@@ -147,3 +147,26 @@ Se serve un segreto: `from secrets_infisical import get_secret` e `get_secret("N
 - `gemini-3.6-flash`: 20 richieste/giorno (e' la riserva). `gemini-3.5-flash-lite` e' il default. `gemini-2.5-flash-lite` non e' piu' disponibile ai nuovi utenti.
 - Google Search grounding: non disponibile nel piano gratuito (429). La ricerca usa Bing (senza chiave), DuckDuckGo come riserva, e Brave API se aggiungi `BRAVE_API_KEY`. Sono pagine HTML: se cambiano formato, `web_search` torna un errore chiaro.
 - Nomi dei modelli e limiti cambiano: controlla `config.json` e aistudio.google.com/rate-limit.
+
+
+## Interfaccia per NOME e strumenti MCP
+
+**Usare le app senza indovinare pixel.** `ui_elenca` e `ui_azione` leggono pulsanti e campi di un'app per NOME tramite l'accessibilita' AT-SPI
+(`scripts/atspi_helper.py`, codice nostro, gira col Python di sistema) e agiscono su quello scelto: l'agente dice «clicca "Nuova sessione"»
+invece di cliccare a coordinate. Dopo ogni azione riceve lo screenshot; la verifica automatica lo richiede come prova. I click a coordinate
+(`controlla_input`) restano l'ultima risorsa. Non legge mai il valore dei campi password.
+
+Le app basate su Chromium/Electron (Brave, Chrome, l'app Claude) espongono gli elementi solo se partono con l'accessibilita' attiva:
+`gsettings set org.gnome.desktop.interface toolkit-accessibility true` e poi riavviare l'app (oppure avviarla con `--force-renderer-accessibility`).
+`ui_elenca` senza risultati ti dice proprio questo.
+
+**Strumenti di altri programmi (MCP).** `mcp_client.py` e' un client minimale del Model Context Protocol (stdio, ~100 righe, nessuna libreria).
+E' **spento di default**. Per usarlo elenchi in `config.json` il server col comando esatto e gli strumenti consentiti:
+
+```json
+"mcp": {"attivo": true, "server": {"nome": {"comando": ["/percorso/server"], "strumenti": ["leggi_qualcosa"]}}}
+```
+
+Un server MCP e' codice che gira con i tuoi permessi: usa solo progetti che hai letto, con versione fissata. Qui il server parte con un
+ambiente minimale (nessun segreto), ogni chiamata chiede conferma e finisce nel registro, i risultati sono trattati come dati e non come istruzioni,
+e gli strumenti non elencati non esistono per l'agente. Piu' strumenti non vuol dire agente piu' bravo: i modelli piccoli si confondono, ne bastano pochi.

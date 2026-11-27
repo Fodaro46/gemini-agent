@@ -81,5 +81,7 @@
       "gemini-3.6-flash": "base"
     }
   },
-  "verifica_tentativi": 2
+  "verifica_tentativi": 2,
+  "_mcp": "Strumenti di altri programmi (Model Context Protocol). SPENTO di default. Ogni server va elencato a mano con il comando esatto e gli strumenti consentiti; ogni chiamata chiede conferma. Esempio: \"server\": {\"nome\": {\"comando\": [\"/percorso/server\"], \"strumenti\": [\"leggi\"]}}",
+  "mcp": {"attivo": false, "server": {}}
 }

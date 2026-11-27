@@ -18,7 +18,7 @@ INSUCCESSO = re.compile(r"^(Errore|RIFIUTATO|Comando rifiutato|Comando bloccato|
                         r"Destinazione non valida|Cattura fallita|Ricerca web fallita|Non e'|Questa cartella|Serve |xdotool non|"
                         r"Coordinate non valide|Combinazione|Timeout|exit=[1-9])", re.I)
 
-INPUT = ("controlla_input", "sequenza_input")      # azioni di mouse/tastiera
+INPUT = ("controlla_input", "sequenza_input", "ui_azione")      # azioni di mouse/tastiera
 
 # verbo (radice) -> categoria di azione
 VERBI = {
@@ -74,7 +74,7 @@ def _testo_digitato(passi: list[Passo], testo: str) -> bool:
     """True se un'azione di digitazione RIUSCITA contiene davvero quel testo."""
     for p in passi:
         if p.ok and p.strumento in INPUT:
-            if p.strumento == "controlla_input" and p.args.get("azione") == "scrivi" and testo.lower() in str(p.args.get("testo", "")).lower():
+            if p.strumento in ("controlla_input", "ui_azione") and p.args.get("azione") == "scrivi" and testo.lower() in str(p.args.get("testo", "")).lower():
                 return True
             if p.strumento == "sequenza_input":
                 try:
@@ -93,7 +93,8 @@ def _frasi(testo: str):
 def _soddisfatta(cat: str, passi: list[Passo]) -> bool:
     ok = [p for p in passi if p.ok]
     if cat == "scrittura":
-        return any(p.strumento in ("write_file", "edit_file", "run_shell", "git", "delega_agenti") for p in ok)
+        return any(p.strumento in ("write_file", "edit_file", "run_shell", "git", "delega_agenti") or
+                   (p.strumento in INPUT and p.args.get("azione") == "scrivi") or p.strumento == "sequenza_input" for p in ok)
     if cat == "modifica":
         return any(p.strumento in ("edit_file", "write_file", "run_shell", "git", "delega_agenti") for p in ok)
     if cat == "cancellazione":
@@ -107,7 +108,7 @@ def _soddisfatta(cat: str, passi: list[Passo]) -> bool:
             return _soddisfatta("esecuzione", passi)
         return passi[ultimo_input].ok and ("[screenshot allegato dopo l'azione" in passi[ultimo_input].risultato
                                            or any(p.ok for p in passi[ultimo_input + 1:] if p.strumento == "screenshot"))
-    return any(p.strumento in ("run_shell", "apri", "controlla_input", "sequenza_input", "git", "delega_agenti") for p in ok)
+    return any(p.strumento in ("run_shell", "apri", "controlla_input", "sequenza_input", "ui_azione", "git", "delega_agenti") for p in ok)
 
 
 def _riferimento(obiettivo: str, passi: list[Passo]) -> str:
