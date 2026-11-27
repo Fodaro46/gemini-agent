@@ -71,6 +71,15 @@
       "modello": "openrouter/free",
       "segreto": "OPENROUTER_API_KEY",
       "temperature": 0
+    },
+    {
+      "nome": "pekpik",
+      "base_url": "https://aiapiv2.pekpik.com/v1",
+      "modello": "gemini-2.5-flash",
+      "segreto": "PEKPIK_API_KEY",
+      "temperature": 0,
+      "visione": false,
+      "_nota": "Rivenditore terzo di API (non Google): vede tutto quello che gli invii (testo e contenuto dei file letti). Senza immagini di proposito. Resta inattivo finche' PEKPIK_API_KEY non esiste in Infisical."
     }
   ],
   "_provider": "Riserva quando finisce Gemini, in ordine: prima il modello locale (Ollama, gratis e senza limiti ma piu' lento e meno capace), poi i servizi online se aggiungi tu le chiavi in Infisical (GROQ_API_KEY, OPENROUTER_API_KEY).",
@@ -83,5 +92,8 @@
   },
   "verifica_tentativi": 2,
   "_mcp": "Strumenti di altri programmi (Model Context Protocol). SPENTO di default. Ogni server va elencato a mano con il comando esatto e gli strumenti consentiti; ogni chiamata chiede conferma. Esempio: \"server\": {\"nome\": {\"comando\": [\"/percorso/server\"], \"strumenti\": [\"leggi\"]}}",
-  "mcp": {"attivo": false, "server": {}}
+  "mcp": {
+    "attivo": false,
+    "server": {}
+  }
 }
