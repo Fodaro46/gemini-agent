@@ -701,6 +701,7 @@ def _con_screenshot(ctx, esito: str) -> str:
     if esito.startswith(("Errore", "RIFIUTATO", "Coordinate", "Azione non valida", "Serve", "Combinazione", "xdotool non")):
         return esito
     time.sleep(0.4)                       # lascio al programma il tempo di reagire
+    esito = esito.replace(" NON basta: fai uno screenshot per vedere l'effetto prima di dire che ha funzionato.", "")
     r = _cattura(ctx)
     if isinstance(r, str):
         return esito + " " + r
