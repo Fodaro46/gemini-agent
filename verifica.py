@@ -9,6 +9,7 @@ Livelli:
              L'agente riceve la contestazione e deve eseguire davvero l'azione o correggersi.
   AVVISO  -> valori o testo che non compaiono in nessun risultato degli strumenti ("non fondato"): da controllare.
 """
+import json
 import re
 from pathlib import Path
 
@@ -65,6 +66,25 @@ def libro_da_cronologia(contents) -> list[Passo]:
     return passi
 
 
+# "scrivi 'ciao'", 'digita "ciao"': il testo che il compito chiede di battere
+RICH_TESTO = re.compile(r"\b(?:scriv\w*|digit\w*|batti\w*)\s+[\"“«'‘]([^\"”»'’]{1,80})[\"”»'’]", re.I)
+
+
+def _testo_digitato(passi: list[Passo], testo: str) -> bool:
+    """True se un'azione di digitazione RIUSCITA contiene davvero quel testo."""
+    for p in passi:
+        if p.ok and p.strumento in INPUT:
+            if p.strumento == "controlla_input" and p.args.get("azione") == "scrivi" and testo.lower() in str(p.args.get("testo", "")).lower():
+                return True
+            if p.strumento == "sequenza_input":
+                try:
+                    if any(a.get("azione") == "scrivi" and testo.lower() in str(a.get("testo", "")).lower() for a in json.loads(p.args.get("azioni", "[]"))):
+                        return True
+                except (ValueError, AttributeError, TypeError):
+                    pass
+    return False
+
+
 def _frasi(testo: str):
     senza_codice = re.sub(r"```.*?```", " ", testo, flags=re.S)
     return [f.strip() for f in re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ü])|\n+", senza_codice) if f.strip()]
@@ -116,6 +136,11 @@ def controlla(risposta: str, passi: list[Passo], obiettivo: str, ws: Path, con_a
     ultimo_esito = {}                                # strumento -> ultimo risultato (per 'esito ignorato')
     for p in passi:
         ultimo_esito[p.strumento] = p
+    if not re.search(r"\b(non|impossibile|purtroppo|nessun)\b", risposta, re.I):
+        for testo in RICH_TESTO.findall(obiettivo):        # il compito chiedeva di scrivere un testo: serve la digitazione vera
+            if not _testo_digitato(passi, testo):
+                errori.append(f"Il compito chiedeva di scrivere «{testo}» ma nessuna azione 'scrivi' con quel testo e' stata eseguita: "
+                              "quello che vedi sullo schermo potrebbe essere vecchio o di un'altra finestra. Eseguila tu, poi controlla lo screenshot.")
     for frase in _frasi(risposta):
         m = CLAIM.search(frase)
         if not m or re.search(r"\b(non|né|mai|impossibile|senza|purtroppo)\b", frase, re.I):

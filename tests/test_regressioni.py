@@ -400,6 +400,16 @@ class TestVerificaSchermo(Base):
             out = tools.sequenza_input(self.ctx("tutto"), json.dumps([{"azione": "tasti", "tasti": "a"}]))
             self.assertIn("screenshot allegato", out)
 
+    def test_testo_da_scrivere_senza_digitazione_e_contestato(self):
+        obiettivo = 'Crea una nuova sessione, scrivi "ciao" e invia.'
+        click = ("sequenza_input", "Sequenza eseguita. [screenshot allegato dopo l'azione, 1x1]")
+        p = [verifica.Passo("sequenza_input", {"azioni": '[{"azione":"click","x":1,"y":1}]'}, click[1])]
+        self.assertTrue(verifica.controlla("Fatto: ciao e' visibile nella chat.", p, obiettivo, self.ws)["errori"])
+        p = [verifica.Passo("sequenza_input", {"azioni": '[{"azione":"scrivi","testo":"ciao"},{"azione":"tasti","tasti":"Return"}]'}, click[1])]
+        self.assertFalse(verifica.controlla("Fatto: ciao e' visibile nella chat.", p, obiettivo, self.ws)["errori"])
+        p = [verifica.Passo("controlla_input", {"azione": "scrivi", "testo": "Ciao!"}, "Fatto. [screenshot allegato dopo l'azione, 1x1]")]
+        self.assertFalse(verifica.controlla("Fatto.", p, obiettivo, self.ws)["errori"])
+
     def test_il_mouse_fuori_schermo_e_segnalato(self):
         with mock.patch.object(tools.shutil, "which", return_value="/usr/bin/xdotool"), \
              mock.patch.object(tools.subprocess, "run") as run:
