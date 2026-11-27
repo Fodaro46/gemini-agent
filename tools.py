@@ -708,8 +708,10 @@ def _con_screenshot(ctx, esito: str) -> str:
     return esito + f" [screenshot allegato dopo l'azione, {r[1]}x{r[2]}]"
 
 
-def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", tasti: str = "", scorri: int = 0, schermata: bool = True) -> str:
+def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", tasti: str = "", scorri: int = 0, schermata: bool = True, azioni=None) -> str:
     """Mouse e tastiera (xdotool) + screenshot automatico dopo l'azione (schermata=False per saltarlo)."""
+    if azioni:                            # i modelli deboli mescolano i due strumenti: se mandano una lista di azioni la eseguo come sequenza
+        return sequenza_input(ctx, azioni)
     esito = _input_singolo(ctx, azione, x, y, testo, tasti, scorri)
     return _con_screenshot(ctx, esito) if schermata else esito
 
@@ -717,7 +719,7 @@ def controlla_input(ctx, azione: str, x: int = 0, y: int = 0, testo: str = "", t
 def sequenza_input(ctx, azioni: str) -> str:
     """Esegue in fila fino a 12 azioni (JSON) e fa UN solo screenshot alla fine. Si ferma al primo errore."""
     try:
-        lista = json.loads(azioni)
+        lista = azioni if isinstance(azioni, list) else json.loads(azioni)
     except (TypeError, ValueError):
         return "Errore: 'azioni' deve essere un JSON, es. [{\"azione\":\"tasti\",\"tasti\":\"ctrl+l\"},{\"azione\":\"scrivi\",\"testo\":\"ciao\"}]"
     if not isinstance(lista, list) or not (1 <= len(lista) <= 12) or not all(isinstance(a, dict) for a in lista):

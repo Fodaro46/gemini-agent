@@ -410,6 +410,11 @@ class TestVerificaSchermo(Base):
         p = [verifica.Passo("controlla_input", {"azione": "scrivi", "testo": "Ciao!"}, "Fatto. [screenshot allegato dopo l'azione, 1x1]")]
         self.assertFalse(verifica.controlla("Fatto.", p, obiettivo, self.ws)["errori"])
 
+    def test_lista_di_azioni_passata_a_controlla_input_diventa_sequenza(self):
+        with mock.patch.object(tools, "_input_singolo", return_value="Fatto."), mock.patch.object(tools, "_cattura", return_value=("n.jpg", 1, 1)):
+            for az in ([{"azione": "tasti", "tasti": "a"}], json.dumps([{"azione": "tasti", "tasti": "a"}])):
+                self.assertIn("Sequenza eseguita", tools.controlla_input(self.ctx("tutto"), "sequenza_input", azioni=az))
+
     def test_il_mouse_fuori_schermo_e_segnalato(self):
         with mock.patch.object(tools.shutil, "which", return_value="/usr/bin/xdotool"), \
              mock.patch.object(tools.subprocess, "run") as run:
